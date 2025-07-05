@@ -1,0 +1,7 @@
+{
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "name": "s/sh recognition app",
+  "description": ""
+}
