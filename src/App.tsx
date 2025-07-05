@@ -144,20 +144,25 @@ export default function App() {
 
         try {
             // 2. KEY CHANGE: Explicitly request mic permission on user tap.
-            // This is crucial for mobile browsers.
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            // We can immediately stop the tracks to release the mic for the SpeechRecognition API
             stream.getTracks().forEach(track => track.stop());
 
             // 3. Proceed with existing logic
             const transcript = await recognizeSpeech();
+
+            // 4. ADDED CHECK: Ensure transcript is not empty
+            if (!transcript || transcript.trim() === '') {
+                setError("Couldn't hear any speech. Please try speaking a bit louder or closer to the mic.");
+                setStatus('idle');
+                return; // Stop execution if no speech was detected
+            }
+
             await analyzePronunciation(word, ipa, transcript);
 
         } catch (err) {
-            console.error(err);
+            console.error("Error during recording or analysis:", err); // Better logging
             let errorMessage = "An unknown error occurred during recording.";
             
-            // 4. Provide more specific error messages
             if (err instanceof Error) {
                 switch(err.name) {
                     case 'NotAllowedError':
@@ -171,7 +176,12 @@ export default function App() {
                         errorMessage = "Microphone is already in use by another app. Please close it and try again.";
                         break;
                     default:
-                        errorMessage = `An error occurred: ${err.message}`;
+                        // Check for API-related errors which might not have a specific name
+                        if (err.message.toLowerCase().includes('api key')) {
+                            errorMessage = "AI analysis failed. Please check API key configuration and permissions.";
+                        } else {
+                            errorMessage = `An error occurred: ${err.message}`;
+                        }
                 }
             } else if (typeof err === 'string') {
                 errorMessage = err;
