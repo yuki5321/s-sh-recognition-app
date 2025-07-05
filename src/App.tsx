@@ -125,17 +125,59 @@ export default function App() {
     };
 
     const handleRecord = async (word: string, ipa: string) => {
+        // 1. Check for browser support first
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            setError("Your browser does not support microphone access. Please try on a modern browser like Chrome or Firefox.");
+            setStatus('idle');
+            return;
+        }
+        if (!SpeechRecognition) {
+            setError("Speech recognition is not supported in this browser. Please try on a modern browser like Chrome or Firefox.");
+            setStatus('idle');
+            return;
+        }
+
         setActiveWord(word);
         setStatus('recording');
         setError('');
         setFeedback(null);
 
         try {
+            // 2. KEY CHANGE: Explicitly request mic permission on user tap.
+            // This is crucial for mobile browsers.
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // We can immediately stop the tracks to release the mic for the SpeechRecognition API
+            stream.getTracks().forEach(track => track.stop());
+
+            // 3. Proceed with existing logic
             const transcript = await recognizeSpeech();
             await analyzePronunciation(word, ipa, transcript);
+
         } catch (err) {
             console.error(err);
-            setError(String(err));
+            let errorMessage = "An unknown error occurred during recording.";
+            
+            // 4. Provide more specific error messages
+            if (err instanceof Error) {
+                switch(err.name) {
+                    case 'NotAllowedError':
+                    case 'PermissionDeniedError':
+                        errorMessage = "Microphone permission denied. Please allow access in your browser settings and try again.";
+                        break;
+                    case 'NotFoundError':
+                        errorMessage = "No microphone found. Please connect a microphone and try again.";
+                        break;
+                    case 'NotReadableError':
+                        errorMessage = "Microphone is already in use by another app. Please close it and try again.";
+                        break;
+                    default:
+                        errorMessage = `An error occurred: ${err.message}`;
+                }
+            } else if (typeof err === 'string') {
+                errorMessage = err;
+            }
+            
+            setError(errorMessage);
             setStatus('idle');
         }
     };
@@ -211,7 +253,7 @@ export default function App() {
 
 
                 <div className={`feedback-container ${status === 'result' ? `result ${feedback?.isCorrect ? 'correct' : 'incorrect'}` : ''}`} aria-live="polite">
-                    {status === 'idle' && <p>Press a mic to start recording.</p>}
+                    {status === 'idle' && <p>Tap a mic icon to test your pronunciation.</p>}
                     {status === 'recording' && <p>Listening...</p>}
                     {status === 'analyzing' && <div className="loader" aria-label="Analyzing pronunciation"></div>}
                     {status === 'result' && feedback && (
